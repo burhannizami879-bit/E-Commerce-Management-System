@@ -1,0 +1,31 @@
+{
+    "ORD001": {
+        "order_id": "ORD001",
+        "customer": {
+            "customer_id": "CUST001",
+            "full_name": "Ahmed Raza",
+            "email": "ahmed@gmail.com",
+            "phone_number": "03112345678",
+            "age": 25,
+            "address": "Karachi, Pakistan",
+            "gender": "Male"
+        },
+        "product": {
+            "product_id": "PR001",
+            "product_name": "Redmi 12",
+            "description": "Redmi Smart Phone",
+            "price": 36000,
+            "category": "Electronics",
+            "stock_quantity": 98,
+            "discount_percentage": 15.0,
+            "status": "Active",
+            "discount_amount": 5400.0,
+            "final_price": 30600.0
+        },
+        "quantity": 2,
+        "order_date": "2026-11-23",
+        "payment_method": "Card",
+        "order_status": "Pending",
+        "total_price": 61200.0
+    }
+}

@@ -1,0 +1,11 @@
+{
+    "CUST001": {
+        "customer_id": "CUST001",
+        "full_name": "Ahmed Raza",
+        "email": "ahmed@gmail.com",
+        "phone_number": "03112345678",
+        "age": 25,
+        "address": "Karachi, Pakistan",
+        "gender": "Male"
+    }
+}
