@@ -1,13 +1,17 @@
 
 from pydantic import BaseModel, Field, field_validator, EmailStr, model_validator, computed_field, ValidationError
-
 from typing import Annotated, Literal
-
 from enum import Enum
-
 from datetime import date
-
+from pathlib import Path
 import json
+
+
+BASE_DIR = Path(__file__).resolve().parent
+
+PRODUCT_FILE = BASE_DIR / "products.json"
+CUSTOMER_FILE = BASE_DIR / "customers.json"
+ORDER_FILE = BASE_DIR / "orders.json"
 
 
 class ProductCategory(str, Enum):
@@ -37,21 +41,13 @@ class OrderStatus(str, Enum):
 
 
 class Product(BaseModel):
-
     product_id: Annotated[str, Field(pattern=r"^PR\d{3,}$")]
-
     product_name: Annotated[str, Field(min_length=3, max_length=60)]
-
     description: Annotated[str, Field(min_length=5, max_length=500)]
-
     price: Annotated[int, Field(gt=0)]
-
     category: ProductCategory
-
     stock_quantity: Annotated[int, Field(ge=0)]
-
     discount_percentage: Annotated[float, Field(ge=0, le=70)] = 0
-
     status: ProductStatus = ProductStatus.ACTIVE
 
     @field_validator("product_name")
@@ -71,19 +67,12 @@ class Product(BaseModel):
 
 
 class Customer(BaseModel):
-
     customer_id: Annotated[str, Field(pattern=r"^CUST\d{3,}$")]
-
     full_name: Annotated[str, Field(min_length=3, max_length=60)]
-
     email: EmailStr
-
     phone_number: Annotated[str, Field(pattern=r"^03\d{9}$")]
-
     age: Annotated[int, Field(ge=18, le=100)]
-
     address: Annotated[str, Field(min_length=5, max_length=200)]
-
     gender: Literal["Male", "Female", "Others"]
 
     @field_validator("full_name")
@@ -93,19 +82,12 @@ class Customer(BaseModel):
 
 
 class Order(BaseModel):
-
     order_id: Annotated[str, Field(pattern=r"^ORD\d{3,}$")]
-
     customer: Customer
-
     product: Product
-
     quantity: Annotated[int, Field(gt=0)]
-
     order_date: date
-
     payment_method: PaymentMethod
-    
     order_status: OrderStatus = OrderStatus.PENDING
 
     @model_validator(mode="after")
@@ -126,22 +108,36 @@ orders = {}
 
 
 def save_json(filename, data):
-    with open(filename, "w") as file:
+    with open(filename, "w", encoding="utf-8") as file:
         json.dump(data, file, indent=4)
 
 
-def load_products():
+def load_json(filename):
     try:
-        with open("products.json", "r") as file:
+        with open(filename, "r", encoding="utf-8") as file:
             data = json.load(file)
 
-            for product_id, product_data in data.items():
-                products[product_id] = Product(**product_data)
+            if not isinstance(data, dict):
+                raise ValueError("Invalid JSON file structure")
+
+            return data
 
     except FileNotFoundError:
-        pass
-    except (json.JSONDecodeError, ValidationError, TypeError) as error:
-        print("Product file error:", error)
+        return {}
+
+    except (json.JSONDecodeError, ValueError) as error:
+        print("File error:", error)
+        return {}
+
+
+def load_products():
+    data = load_json(PRODUCT_FILE)
+
+    for product_id, product_data in data.items():
+        try:
+            products[product_id] = Product(**product_data)
+        except (ValidationError, TypeError) as error:
+            print("Product error:", error)
 
 
 def save_products():
@@ -149,21 +145,17 @@ def save_products():
         product_id: product.model_dump(mode="json")
         for product_id, product in products.items()
     }
-    save_json("products.json", data)
+    save_json(PRODUCT_FILE, data)
 
 
 def load_customers():
-    try:
-        with open("customers.json", "r") as file:
-            data = json.load(file)
+    data = load_json(CUSTOMER_FILE)
 
-            for customer_id, customer_data in data.items():
-                customers[customer_id] = Customer(**customer_data)
-
-    except FileNotFoundError:
-        pass
-    except (json.JSONDecodeError, ValidationError, TypeError) as error:
-        print("Customer file error:", error)
+    for customer_id, customer_data in data.items():
+        try:
+            customers[customer_id] = Customer(**customer_data)
+        except (ValidationError, TypeError) as error:
+            print("Customer error:", error)
 
 
 def save_customers():
@@ -171,21 +163,17 @@ def save_customers():
         customer_id: customer.model_dump(mode="json")
         for customer_id, customer in customers.items()
     }
-    save_json("customers.json", data)
+    save_json(CUSTOMER_FILE, data)
 
 
 def load_orders():
-    try:
-        with open("orders.json", "r") as file:
-            data = json.load(file)
+    data = load_json(ORDER_FILE)
 
-            for order_id, order_data in data.items():
-                orders[order_id] = Order(**order_data)
-
-    except FileNotFoundError:
-        pass
-    except (json.JSONDecodeError, ValidationError, TypeError) as error:
-        print("Order file error:", error)
+    for order_id, order_data in data.items():
+        try:
+            orders[order_id] = Order(**order_data)
+        except (ValidationError, TypeError) as error:
+            print("Order error:", error)
 
 
 def save_orders():
@@ -193,7 +181,7 @@ def save_orders():
         order_id: order.model_dump(mode="json")
         for order_id, order in orders.items()
     }
-    save_json("orders.json", data)
+    save_json(ORDER_FILE, data)
 
 
 def add_product():
@@ -211,11 +199,8 @@ def add_product():
             price=int(input("Enter Price: ")),
             category=input("Enter Category: ").strip().title(),
             stock_quantity=int(input("Enter Stock Quantity: ")),
-            discount_percentage=float(
-                input("Enter Discount Percentage (default 0): ") or 0
-            ),
-            status=input("Enter Status (Active/Inactive, default Active): ")
-            or "Active"
+            discount_percentage=float(input("Enter Discount Percentage (default 0): ") or 0),
+            status=input("Enter Status (Active/Inactive, default Active): ").strip().title() or "Active"
         )
 
         products[product_id] = product
@@ -242,10 +227,7 @@ def search_product():
     found = False
 
     for product in products.values():
-        if (
-            keyword in product.product_name.lower()
-            or keyword == product.product_id.lower()
-        ):
+        if keyword in product.product_name.lower() or keyword == product.product_id.lower():
             print(product.model_dump())
             found = True
 
@@ -299,7 +281,7 @@ def update_product():
             updated_data["price"] = int(new_price)
 
         if new_category.strip():
-            updated_data["category"] = new_category.title()
+            updated_data["category"] = new_category.strip().title()
 
         if new_stock.strip():
             updated_data["stock_quantity"] = int(new_stock)
@@ -308,7 +290,7 @@ def update_product():
             updated_data["discount_percentage"] = float(new_discount)
 
         if new_status.strip():
-            updated_data["status"] = new_status.title()
+            updated_data["status"] = new_status.strip().title()
 
         updated_product = Product(**updated_data)
 
@@ -329,10 +311,7 @@ def delete_product():
         return
 
     for order in orders.values():
-        if (
-            order.product.product_id == product_id
-            and order.order_status != OrderStatus.CANCELLED
-        ):
+        if order.product.product_id == product_id and order.order_status != OrderStatus.CANCELLED:
             print("Cannot delete product with an active order")
             return
 
@@ -357,7 +336,7 @@ def add_customer():
             phone_number=input("Enter Phone Number: "),
             age=int(input("Enter Age: ")),
             address=input("Enter Address: "),
-            gender=input("Enter Gender (Male/Female/Others): ").title()
+            gender=input("Enter Gender (Male/Female/Others): ").strip().title()
         )
 
         customers[customer_id] = customer
@@ -384,10 +363,7 @@ def search_customer():
     found = False
 
     for customer in customers.values():
-        if (
-            keyword == customer.customer_id.lower()
-            or keyword in customer.full_name.lower()
-        ):
+        if keyword == customer.customer_id.lower() or keyword in customer.full_name.lower():
             print(customer.model_dump())
             found = True
 
@@ -429,7 +405,7 @@ def update_customer():
             updated_data["address"] = new_address
 
         if new_gender.strip():
-            updated_data["gender"] = new_gender.title()
+            updated_data["gender"] = new_gender.strip().title()
 
         updated_customer = Customer(**updated_data)
 
@@ -498,12 +474,12 @@ def create_order():
             ),
             payment_method=input(
                 "Enter Payment Method (Cash/Card/Bank Transfer): "
-            ).title()
+            ).strip().title()
         )
 
-        orders[order_id] = order
-
         product.stock_quantity -= quantity
+
+        orders[order_id] = order
 
         save_orders()
         save_products()
@@ -548,6 +524,7 @@ def update_order_status():
 
     try:
         print("Available Statuses:")
+
         for status in OrderStatus:
             if status != OrderStatus.CANCELLED:
                 print(status.value)
@@ -558,10 +535,7 @@ def update_order_status():
             print("Use Cancel Order option to cancel an order")
             return
 
-        updated_data = order.model_dump(
-            exclude={"total_price"}
-        )
-
+        updated_data = order.model_dump(exclude={"total_price"})
         updated_data["order_status"] = new_status
 
         updated_order = Order(**updated_data)
@@ -596,10 +570,7 @@ def cancel_order():
 
     products[product_id].stock_quantity += order.quantity
 
-    updated_data = order.model_dump(
-        exclude={"total_price"}
-    )
-
+    updated_data = order.model_dump(exclude={"total_price"})
     updated_data["order_status"] = OrderStatus.CANCELLED
 
     updated_order = Order(**updated_data)
